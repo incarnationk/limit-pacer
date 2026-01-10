@@ -10,11 +10,29 @@ interface AdminViewProps {
 }
 
 export function AdminView({ members, tasks }: AdminViewProps) {
+    const isTaskVisible = (userRole: string, target: string) => {
+        if (target === '全員') return true;
+        if (target === userRole) return true;
+
+        const roles: Record<string, string[]> = {
+            管理者: ['SM', 'Mgr'],
+            役職者: ['SM', 'Mgr', 'AM', 'L', 'AL'],
+            社員: ['SM', 'Mgr', 'AM', 'L', 'AL', 'T', 'H'],
+            BP: ['BP']
+        };
+        return (roles[target] || []).includes(userRole);
+    };
+
     const getMemberStatus = (member: Member) => {
-        // Find tasks for this member's role (or 'All')
-        const memberTasks = tasks.filter(t =>
-            !t.isCompleted && (t.target === member.role || t.target === '全メンバー')
-        );
+        // Find tasks for this member's role
+        const memberTasks = tasks.filter(t => {
+            // Check visibility
+            if (!isTaskVisible(member.role, t.target)) return false;
+
+            // Check completion (must check t.completedBy array against member.id)
+            const isCompleted = t.completedBy && t.completedBy.includes(member.id);
+            return !isCompleted;
+        });
 
         // Sort by urgency: Expired first, then Urgent, then Normal
         return memberTasks.sort((a, b) => {
@@ -23,22 +41,53 @@ export function AdminView({ members, tasks }: AdminViewProps) {
         });
     };
 
+    // --- Dynamic Stats Calculation ---
+    // 1. Calculate Red Cards (Active)
+    const totalRedCards = members.reduce((acc, member) => {
+        const pending = getMemberStatus(member);
+        const redCount = pending.filter(t => getTaskStatus(t.deadline) === 'expired').length;
+        return acc + redCount;
+    }, 0);
+
+    // 2. Calculate Compliance Rate
+    // Total assigned tasks (sum of all tasks visible to each member)
+    // Completed tasks (sum of completed tasks for each member)
+    let totalAssignments = 0;
+    let totalCompleted = 0;
+
+    members.forEach(member => {
+        tasks.forEach(task => {
+            if (isTaskVisible(member.role, task.target)) {
+                totalAssignments++;
+                if (task.completedBy && task.completedBy.includes(member.id)) {
+                    totalCompleted++;
+                }
+            }
+        });
+    });
+
+    const complianceRate = totalAssignments > 0 ? Math.round((totalCompleted / totalAssignments) * 100) : 100;
+
+    // 3. Team Status
+    const teamStatus = totalRedCards > 5 ? 'Critical' : totalRedCards > 0 ? 'Warning' : 'Safe';
+    const teamStatusColor = totalRedCards > 5 ? 'text-red-600' : totalRedCards > 0 ? 'text-amber-600' : 'text-blue-600';
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white p-6 rounded-2xl border shadow-sm">
                     <h3 className="text-gray-500 text-sm font-medium">Compliance Rate</h3>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">82%</p>
-                    <div className="text-green-600 text-sm mt-1">↑ 4% vs last week</div>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">{complianceRate}%</p>
+                    <div className="text-gray-400 text-sm mt-1">Real-time status</div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border shadow-sm">
                     <h3 className="text-gray-500 text-sm font-medium">Red Cards (Active)</h3>
-                    <p className="text-3xl font-bold text-red-600 mt-2">3</p>
-                    <div className="text-red-800 text-sm mt-1">Action Required</div>
+                    <p className="text-3xl font-bold text-red-600 mt-2">{totalRedCards}</p>
+                    <div className="text-red-800 text-sm mt-1">{totalRedCards > 0 ? 'Action Required' : 'No Critical Issues'}</div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl border shadow-sm">
                     <h3 className="text-gray-500 text-sm font-medium">Team Status</h3>
-                    <p className="text-3xl font-bold text-blue-600 mt-2">Safe</p>
+                    <p className={cn("text-3xl font-bold mt-2", teamStatusColor)}>{teamStatus}</p>
                 </div>
             </div>
 

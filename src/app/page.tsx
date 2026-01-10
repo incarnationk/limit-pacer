@@ -1,29 +1,134 @@
 'use client';
 
-import { useState } from 'react';
-import { MOCK_MEMBERS, MOCK_TASKS, getTaskStatus } from '@/data/mock';
+import { useState, useEffect } from 'react';
+import { Member, Task, MOCK_MEMBERS, MOCK_TASKS, getTaskStatus } from '@/data/mock';
 import { TaskRedCard } from '@/components/dashboard/task-red-card';
 import { TaskList } from '@/components/dashboard/task-list';
 import { AdminView } from '@/components/dashboard/admin-view';
 import { RoleSwitcher } from '@/components/dashboard/role-switcher';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
+import { LoginButton } from '@/components/auth/login-button';
+import { useMsal, useIsAuthenticated } from "@azure/msal-react";
+import { fetchExcelTable, mapRowToMember, mapRowToTask, updateTaskCompletionInExcel } from '@/services/excel-client';
 
 export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'member' | 'admin'>('member');
-  const [tasks, setTasks] = useState(MOCK_TASKS);
+  const { instance, accounts } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+
+  // Initialize with Mock Data ONLY if not authenticated (or purely as initial fallback that gets overwritten)
+  // But to avoid "flashing" mock data while loading real data, we might want to start empty if authenticated?
+  // Actually, we don't know if we are authenticated immediately on first render (msal loading).
+  // Let's stick to MOCK init, but clear it if we detect auth?
+  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
+  const [members, setMembers] = useState<Member[]>(MOCK_MEMBERS);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Fetch Data from Excel on Load (if authenticated)
+  useEffect(() => {
+    async function loadData() {
+      if (isAuthenticated && accounts[0]) {
+        setIsLoading(true);
+        setLoadError(null);
+        try {
+          // Fetch Members
+          const membersData = await fetchExcelTable(instance, accounts[0], 'Start_Members');
+          const loadedMembers = membersData.map(mapRowToMember);
+          setMembers(loadedMembers);
+
+          // Fetch Tasks
+          const tasksData = await fetchExcelTable(instance, accounts[0], 'Start_Tasks');
+          const loadedTasks = tasksData.map(mapRowToTask);
+          setTasks(loadedTasks);
+        } catch (e: any) {
+          console.error("Failed to load Excel data", e);
+          // Show the specific error from excel-client.ts in the UI
+          setLoadError(`Failed to load data. Details: ${e.message || e}`);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // Not authenticated -> Ensure Mock Data is present (Reset if logged out)
+        setTasks(MOCK_TASKS);
+        setMembers(MOCK_MEMBERS);
+      }
+    }
+    loadData();
+  }, [isAuthenticated, instance, accounts]);
 
   // --- Member View Logic ---
-  // Simulate logged-in user: "Suzuki Ichiro" (ID: 2) who has urgent tasks
-  const currentUser = MOCK_MEMBERS.find(m => m.id === '2')!;
-  const myTasks = tasks.filter(t => t.target === currentUser.role || t.target === '全メンバー');
+  const currentUser = members.find(m => m.id === '2') || members[0] || MOCK_MEMBERS[1];
 
-  // Check for critical tasks (Expired)
-  const criticalTasks = myTasks.filter(t => getTaskStatus(t.deadline) === 'expired' && !t.isCompleted);
+  const enrichedTasks = tasks.map(t => ({
+    ...t,
+    isCompleted: t.completedBy ? t.completedBy.includes(currentUser.id) : false
+  }));
 
-  const handleToggleTask = (taskId: string) => {
-    setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t
-    ));
+  // Target Definition Logic
+  // 全員：全role
+  // 管理者：SM、Mgr
+  // 役職者：SM、Mgr、AM、L、AL
+  // 社員：SM、Mgr、AM、L、AL、T、H
+  // Target Definition Logic
+  // 全員：全role
+  // 管理者：SM、Mgr
+  // 役職者：SM、Mgr、AM、L、AL
+  // 社員：SM、Mgr、AM、L、AL、T、H
+  // BP：BP
+  const isTaskVisible = (userRole: string, target: string) => {
+    if (target === '全員') return true;
+    if (target === userRole) return true; // Direct match
+
+    const roles = {
+      管理者: ['SM', 'Mgr'],
+      役職者: ['SM', 'Mgr', 'AM', 'L', 'AL'],
+      社員: ['SM', 'Mgr', 'AM', 'L', 'AL', 'T', 'H'],
+      BP: ['BP']
+    };
+
+    // Check if userRole is included in the target group
+    const allowedRoles = roles[target as keyof typeof roles] || [];
+    return allowedRoles.includes(userRole);
+  };
+
+  const myTasks = enrichedTasks.filter(t => isTaskVisible(currentUser.role, t.target));
+
+  // Remove Debug logs
+  // console.log("DEBUG: ...");
+
+  const criticalTasks = myTasks.filter(t => t.deadline && getTaskStatus(t.deadline) === 'expired' && !t.isCompleted);
+
+  const handleToggleTask = async (taskId: string) => {
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+
+    const task = tasks[taskIndex];
+    if (!task.completedBy) task.completedBy = []; // Safety check
+
+    const isCurrentlyCompleted = task.completedBy.includes(currentUser.id);
+
+    let newCompletedBy: string[];
+    if (isCurrentlyCompleted) {
+      newCompletedBy = task.completedBy.filter(id => id !== currentUser.id);
+    } else {
+      newCompletedBy = [...task.completedBy, currentUser.id];
+    }
+
+    const updatedTasks = [...tasks];
+    updatedTasks[taskIndex] = { ...task, completedBy: newCompletedBy };
+    setTasks(updatedTasks);
+
+    if (isAuthenticated && accounts[0]) {
+      try {
+        await updateTaskCompletionInExcel(instance, accounts[0], task, newCompletedBy);
+      } catch (e) {
+        console.error("Sync failed", e);
+        setTasks(tasks); // Revert
+        alert("Failed to update Excel file.");
+      }
+    }
   };
 
 
@@ -37,83 +142,109 @@ export default function DashboardPage() {
               L
             </div>
             <span className="font-bold text-xl tracking-tight">Limit Pacer</span>
+            {isAuthenticated ? (
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Live Data</span>
+            ) : (
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-bold border border-gray-200">Demo Mode</span>
+            )}
           </div>
           <div className="flex items-center gap-4">
+            <LoginButton />
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-gray-900">{viewMode === 'member' ? currentUser.name : 'Administrator'}</p>
               <p className="text-xs text-gray-500">{viewMode === 'member' ? currentUser.role : 'Management'}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-gray-200 border-2 border-white shadow-sm overflow-hidden">
-              {/* Avatar Placeholder */}
               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${viewMode === 'member' ? 'Suzuki' : 'Admin'}`} alt="avatar" />
             </div>
           </div>
         </div>
       </header>
 
+      {/* Error Banner */}
+      {loadError && (
+        <div className="max-w-5xl mx-auto px-6 mt-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Connection Error: </strong>
+            <span className="block sm:inline">{loadError}</span>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-5xl mx-auto px-6 py-8">
+        {isAuthenticated && isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p>Loading data from OneDrive...</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            {viewMode === 'member' ? (
+              <motion.div
+                key="member-view"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-8"
+              >
+                {/* Red Card Section */}
+                <AnimatePresence>
+                  {criticalTasks.length > 0 && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                    >
+                      <div className="space-y-4">
+                        {criticalTasks.map(task => (
+                          <TaskRedCard key={task.id} task={task} />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-        {/* VIEW: MEMBER */}
-        {viewMode === 'member' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            {/* 1. Red Cards (Only show if Critical) */}
-            {criticalTasks.length > 0 && (
-              <div className="mb-10">
-                <h2 className="text-red-600 font-bold uppercase tracking-widest text-xs mb-4 pl-1">
-                  Critical Action Required
-                </h2>
-                <div className="space-y-4">
-                  {criticalTasks.map(task => (
-                    <TaskRedCard key={task.id} task={task} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 2. Task List */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
-                  <p className="text-gray-500">Keep up the pace!</p>
-                </div>
-                <div className="hidden sm:block">
-                  {/* Completion Ring Placeholder */}
-                  <div className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    85% Completed
+                {/* Task List Header */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
+                      <p className="text-gray-500">Keep up the pace!</p>
+                    </div>
+                    <div className="hidden sm:block">
+                      <div className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                        Live Status
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <TaskList tasks={myTasks} onToggle={handleToggleTask} />
-            </div>
-          </motion.div>
+                {/* Task List Component */}
+                <TaskList tasks={myTasks} onToggle={handleToggleTask} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="admin-view"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="mb-8">
+                  <h1 className="text-2xl font-bold text-gray-900">Team Overview</h1>
+                  <p className="text-gray-500">Monitoring compliance across all teams.</p>
+                </div>
+
+                <AdminView members={members} tasks={enrichedTasks} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
-
-        {/* VIEW: ADMIN */}
-        {viewMode === 'admin' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4 }}
-          >
-            <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900">Team Overview</h1>
-              <p className="text-gray-500">Monitoring compliance across all teams.</p>
-            </div>
-
-            <AdminView members={MOCK_MEMBERS} tasks={tasks} />
-          </motion.div>
-        )}
-
       </main>
 
       {/* Dev Tool: Role Switcher */}
       <RoleSwitcher currentMode={viewMode} onToggle={setViewMode} />
-    </div>
+    </div >
   );
 }
