@@ -6,7 +6,8 @@ export const msalConfig: Configuration = {
         clientId: process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID || "4657c03a-0244-47b0-84e4-11d4d916cacb",
         // authority: "https://login.microsoftonline.com/common", // Use 'common' for Multi-tenant + Personal
         authority: "https://login.microsoftonline.com/common",
-        redirectUri: "http://localhost:3000",
+        // Dynamically set redirectUri to current origin (works for localhost and deployed URL)
+        redirectUri: typeof window !== 'undefined' ? window.location.origin : "http://localhost:3000",
     },
     cache: {
         cacheLocation: "sessionStorage", // This configures where your cache will be stored
