@@ -1,9 +1,21 @@
 import { Configuration, PopupRequest } from "@azure/msal-browser";
 
-// Values from environment variables (or hardcoded for dev convenient if env not set)
+// Validate required environment variables
+const getRequiredEnvVar = (name: string): string => {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error(
+            `Required environment variable ${name} is not set. ` +
+            `Please configure it in your .env.local file.`
+        );
+    }
+    return value;
+};
+
+// Values from environment variables (required)
 export const msalConfig: Configuration = {
     auth: {
-        clientId: process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID || "4657c03a-0244-47b0-84e4-11d4d916cacb",
+        clientId: getRequiredEnvVar("NEXT_PUBLIC_AZURE_AD_CLIENT_ID"),
         // authority: "https://login.microsoftonline.com/common", // Use 'common' for Multi-tenant + Personal
         authority: "https://login.microsoftonline.com/common",
         // Dynamically set redirectUri to current origin (works for localhost and deployed URL)
