@@ -26,14 +26,13 @@ export function LoginButton({ displayName }: LoginButtonProps) {
     };
 
     const handleLogout = () => {
-        // Client-side logout only: Remove all accounts from cache
-        if (accounts.length > 0) {
-            accounts.forEach(account => {
-                (instance as any).removeAccount(account);
-            });
+        // Client-side logout only: Clear session storage to remove MSAL tokens directly
+        // This avoids the 'removeAccount' error and effectively logs out of the app locally
+        if (typeof window !== 'undefined') {
+            sessionStorage.clear();
+            // Force full reload/redirect to clear memory state
+            window.location.href = "/login";
         }
-        // Redirect to Login Page
-        router.push("/login");
     };
 
     if (isAuthenticated) {
