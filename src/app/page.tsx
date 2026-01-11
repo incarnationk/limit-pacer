@@ -142,11 +142,11 @@ export default function DashboardPage() {
               L
             </div>
             <span className="font-bold text-xl tracking-tight">Limit Pacer</span>
-            {isAuthenticated ? (
+            {isAuthenticated && !isLoading && !loadError ? (
               <span className="ml-2 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Live Data</span>
-            ) : (
+            ) : !isAuthenticated ? (
               <span className="ml-2 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-bold border border-gray-200">Demo Mode</span>
-            )}
+            ) : null}
           </div>
           <div className="flex items-center gap-4">
             <LoginButton displayName={isAuthenticated ? currentUser.name : undefined} />
