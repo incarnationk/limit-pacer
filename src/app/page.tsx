@@ -59,7 +59,11 @@ export default function DashboardPage() {
   }, [isAuthenticated, instance, accounts]);
 
   // --- Member View Logic ---
-  const currentUser = members.find(m => m.id === '2') || members[0] || MOCK_MEMBERS[1];
+  // Dynamically find current user based on MSAL account name
+  // Fallback to first member or Mock if not found/authenticated
+  const currentUser = members.find(m =>
+    isAuthenticated && accounts[0] && m.name === accounts[0].name
+  ) || members[0] || MOCK_MEMBERS[0];
 
   const enrichedTasks = tasks.map(t => ({
     ...t,
