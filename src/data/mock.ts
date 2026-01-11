@@ -6,6 +6,7 @@ export interface Member {
   location: string; // "場所"
   name: string; // "氏名"
   role: Role; // "役柄"
+  email?: string; // "Email"
   authority?: 'admin' | string; // "権限"
 }
 

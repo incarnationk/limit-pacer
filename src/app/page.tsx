@@ -59,10 +59,11 @@ export default function DashboardPage() {
   }, [isAuthenticated, instance, accounts]);
 
   // --- Member View Logic ---
-  // Dynamically find current user based on MSAL account name
-  // Fallback to first member or Mock if not found/authenticated
+  // --- Member View Logic ---
+  // Match by Email (ID Token preferred) because Names often differ (e.g. English vs Japanese)
+  // We use accounts[0].username which typically holds the email address (UPN)
   const currentUser = members.find(m =>
-    isAuthenticated && accounts[0] && m.name === accounts[0].name
+    isAuthenticated && accounts[0] && accounts[0].username && m.email === accounts[0].username.toLowerCase()
   ) || members[0] || MOCK_MEMBERS[0];
 
   const enrichedTasks = tasks.map(t => ({

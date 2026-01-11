@@ -71,8 +71,9 @@ export function mapRowToMember(row: any): Member {
         name: cells[1],
         team: cells[2],
         role: cells[3],
-        authority: cells[4] ? String(cells[4]).toLowerCase() : undefined,
-        location: 'Unknown' // Default for now as it's not in Excel yet or assume it's missing
+        email: cells[4] ? String(cells[4]).toLowerCase() : undefined,
+        authority: cells[5] ? String(cells[5]).toLowerCase() : undefined,
+        location: 'Unknown' // Default for now
     };
 }
 
