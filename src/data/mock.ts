@@ -2,12 +2,13 @@ export type Role = 'SM' | 'Mgr' | 'AM' | 'L' | 'AL' | 'T' | 'H' | 'BP';
 
 export interface Member {
   id: string; // "No"
-  team: string; // "Team"
+  group: string; // "Group" (Previously Team)
   location: string; // "場所"
   name: string; // "氏名"
   role: Role; // "役柄"
   email?: string; // "Email"
   authority?: 'admin' | string; // "権限"
+  team?: string; // "チーム" (New column)
 }
 
 export interface Task {
@@ -24,9 +25,9 @@ export interface Task {
 }
 
 export const MOCK_MEMBERS: Member[] = [
-  { id: '1', team: 'Development', location: 'Tokyo', name: 'Yamada Taro', role: 'L' },
-  { id: '2', team: 'Sales', location: 'Osaka', name: 'Suzuki Ichiro', role: 'T' },
-  { id: '3', team: 'HR', location: 'Tokyo', name: 'Sato Hanako', role: 'AL' },
+  { id: '1', group: 'Development', location: 'Tokyo', name: 'Yamada Taro', role: 'L' },
+  { id: '2', group: 'Sales', location: 'Osaka', name: 'Suzuki Ichiro', role: 'T' },
+  { id: '3', group: 'HR', location: 'Tokyo', name: 'Sato Hanako', role: 'AL' },
 ];
 
 export const MOCK_TASKS: Task[] = [

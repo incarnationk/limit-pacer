@@ -69,10 +69,11 @@ export function mapRowToMember(row: any): Member {
     return {
         id: String(cells[0]),
         name: cells[1],
-        team: cells[2],
+        group: cells[2],
         role: cells[3],
         email: cells[4] ? String(cells[4]).toLowerCase() : undefined,
         authority: cells[5] ? String(cells[5]).toLowerCase() : undefined,
+        team: cells[6] ? String(cells[6]) : undefined,
         location: 'Unknown' // Default for now
     };
 }
