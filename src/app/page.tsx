@@ -198,20 +198,7 @@ export default function DashboardPage() {
                   )}
                 </AnimatePresence>
 
-                {/* Task List Header */}
-                <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
-                      <p className="text-gray-500">Keep up the pace!</p>
-                    </div>
-                    <div className="hidden sm:block">
-                      <div className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                        Live Status
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Task List Header Removed */}
 
                 {/* Task List Component */}
                 <TaskList tasks={myTasks} onToggle={handleToggleTask} />
