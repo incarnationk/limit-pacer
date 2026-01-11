@@ -149,14 +149,7 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <LoginButton />
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-gray-900">{viewMode === 'member' ? currentUser.name : 'Administrator'}</p>
-              <p className="text-xs text-gray-500">{viewMode === 'member' ? currentUser.role : 'Management'}</p>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-gray-200 border-2 border-white shadow-sm overflow-hidden">
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${viewMode === 'member' ? 'Suzuki' : 'Admin'}`} alt="avatar" />
-            </div>
+            <LoginButton displayName={isAuthenticated ? currentUser.name : undefined} />
           </div>
         </div>
       </header>

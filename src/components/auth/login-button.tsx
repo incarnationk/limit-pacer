@@ -4,7 +4,11 @@ import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { loginRequest } from "@/lib/auth-config";
 import { LogIn, LogOut, User } from "lucide-react";
 
-export function LoginButton() {
+interface LoginButtonProps {
+    displayName?: string;
+}
+
+export function LoginButton({ displayName }: LoginButtonProps) {
     const { instance, accounts } = useMsal();
     const isAuthenticated = useIsAuthenticated();
 
@@ -21,7 +25,7 @@ export function LoginButton() {
     };
 
     if (isAuthenticated) {
-        const name = accounts[0]?.name || "User";
+        const name = displayName || accounts[0]?.name || "User";
         return (
             <div className="flex items-center gap-3 bg-white/50 px-4 py-1.5 rounded-full border border-gray-200">
                 <div className="flex items-center gap-2">
