@@ -4,6 +4,8 @@ import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { loginRequest } from "@/lib/auth-config";
 import { LogIn, LogOut, User } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+
 interface LoginButtonProps {
     displayName?: string;
 }
@@ -11,24 +13,27 @@ interface LoginButtonProps {
 export function LoginButton({ displayName }: LoginButtonProps) {
     const { instance, accounts } = useMsal();
     const isAuthenticated = useIsAuthenticated();
+    const router = useRouter();
 
-    const handleLogin = () => {
-        instance.loginPopup(loginRequest).catch((e) => {
+    const handleLogin = async () => {
+        try {
+            await instance.loginPopup(loginRequest);
+            // After successful login, redirect to Dashboard if we are on login page
+            router.push("/");
+        } catch (e) {
             console.error(e);
-        });
+        }
     };
 
     const handleLogout = () => {
         // Client-side logout only: Remove all accounts from cache
-        // This signs out of the App but keeps Microsoft session active (SSO available)
         if (accounts.length > 0) {
             accounts.forEach(account => {
-                // Force remove from cache (method exists on class but missing in interface in some versions)
                 (instance as any).removeAccount(account);
             });
         }
-        // Force reload or state update if needed, but removeAccount triggers useMsal update
-        window.location.reload();
+        // Redirect to Login Page
+        router.push("/login");
     };
 
     if (isAuthenticated) {
@@ -54,7 +59,7 @@ export function LoginButton({ displayName }: LoginButtonProps) {
     return (
         <button
             onClick={handleLogin}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-bold shadow-md hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-bold shadow-md hover:bg-blue-700 transition-colors cursor-pointer"
         >
             <LogIn size={16} />
             Sign In
