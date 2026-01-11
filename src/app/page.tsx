@@ -223,8 +223,10 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Dev Tool: Role Switcher */}
-      <RoleSwitcher currentMode={viewMode} onToggle={setViewMode} />
+      {/* Dev Tool: Role Switcher - Only for Admin Authority */}
+      {currentUser.authority === 'admin' && (
+        <RoleSwitcher currentMode={viewMode} onToggle={setViewMode} />
+      )}
     </div >
   );
 }
