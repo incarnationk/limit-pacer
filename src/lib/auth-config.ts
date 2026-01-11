@@ -1,12 +1,18 @@
 import { Configuration, PopupRequest } from "@azure/msal-browser";
 
-// Validate required environment variables
+// Validate required environment variables at runtime (not at build time)
 const getRequiredEnvVar = (name: string): string => {
+    // Only validate in browser context (not during SSR/build)
+    if (typeof window === 'undefined') {
+        // During build/SSR, return empty string to prevent build errors
+        return '';
+    }
+
     const value = process.env[name];
     if (!value) {
         throw new Error(
             `Required environment variable ${name} is not set. ` +
-            `Please configure it in your .env.local file.`
+            `Please configure it in your .env.local file or Azure Static Web Apps configuration.`
         );
     }
     return value;
