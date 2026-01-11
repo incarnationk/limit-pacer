@@ -93,10 +93,24 @@ export function mapRowToTask(row: any): Task {
     };
 }
 
-// Simple helper if Excel returns date serial/string
+// Helper to handle Excel Date formats
 function convertExcelDate(val: any): string {
-    // If Excel returns number (Serial Date), we might need conversion.
-    // For now assuming string "YYYY-MM-DD" as per guide.
+    // If it's a number (Excel Serial Date), convert to YYYY-MM-DD
+    // Excel base date: Dec 30, 1899 (approx). 
+    // Unix epoch (1970-01-01) is 25569 days after Excel epoch.
+    if (typeof val === 'number') {
+        const date = new Date((val - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+    }
+
+    // If it looks like a number in string form
+    const numVal = Number(val);
+    if (!isNaN(numVal) && numVal > 10000) { // arbitrary formatting check (e.g. year 2000+ is >36000)
+        const date = new Date((numVal - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+    }
+
+    // Otherwise return as is (assuming it's already a string like "2024-12-31")
     return String(val);
 }
 
