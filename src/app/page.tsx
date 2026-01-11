@@ -141,7 +141,7 @@ export default function DashboardPage() {
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold">
               L
             </div>
-            <span className="font-bold text-xl tracking-tight">Limit Pacer</span>
+            <span className="font-bold text-xl tracking-tight">期限管理</span>
             {isAuthenticated && !isLoading && !loadError ? (
               <span className="ml-2 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold border border-green-200">Live Data</span>
             ) : !isAuthenticated ? (
