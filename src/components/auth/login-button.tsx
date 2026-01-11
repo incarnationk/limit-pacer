@@ -19,9 +19,16 @@ export function LoginButton({ displayName }: LoginButtonProps) {
     };
 
     const handleLogout = () => {
-        instance.logoutPopup().catch((e) => {
-            console.error(e);
-        });
+        // Client-side logout only: Remove all accounts from cache
+        // This signs out of the App but keeps Microsoft session active (SSO available)
+        if (accounts.length > 0) {
+            accounts.forEach(account => {
+                // Force remove from cache (method exists on class but missing in interface in some versions)
+                (instance as any).removeAccount(account);
+            });
+        }
+        // Force reload or state update if needed, but removeAccount triggers useMsal update
+        window.location.reload();
     };
 
     if (isAuthenticated) {
