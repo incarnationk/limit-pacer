@@ -1,8 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useIsAuthenticated } from "@azure/msal-react";
 import { LoginButton } from "@/components/auth/login-button";
 
 export default function LoginPage() {
+    const isAuthenticated = useIsAuthenticated();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            router.push("/");
+        }
+    }, [isAuthenticated, router]);
+
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
             <div className="text-center space-y-6 max-w-md p-8 bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -18,7 +30,6 @@ export default function LoginPage() {
                 </p>
 
                 <div className="pt-4 flex justify-center">
-                    {/* Pass a prop to login button if needed, or just use it as is */}
                     <LoginButton />
                 </div>
             </div>
