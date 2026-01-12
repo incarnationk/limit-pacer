@@ -23,15 +23,19 @@ async function getToken(instance: IPublicClientApplication, account: AccountInfo
 // Helper to find file ID by name in root
 async function getFileId(instance: IPublicClientApplication, account: AccountInfo, fileName: string): Promise<string> {
     const token = await getToken(instance, account);
-    // Use OData filter to find the file
-    const searchUrl = `${GRAPH_ENDPOINT}/me/drive/root/children?$filter=name eq '${fileName}'`;
+    const escapedFileName = fileName.replace(/'/g, "''");
+    const searchUrl = `${GRAPH_ENDPOINT}/me/drive/root/children?$filter=name eq '${escapedFileName}'`;
 
     const response = await fetch(searchUrl, {
         headers: { Authorization: `Bearer ${token}` }
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to list files: ${await response.text()}`);
+        const errorText = await response.text();
+        if (process.env.NODE_ENV !== 'production') {
+            console.error(`Failed to list files:`, errorText);
+        }
+        throw new Error("ファイルの取得に失敗しました。");
     }
 
     const data = await response.json();
@@ -54,8 +58,10 @@ export async function fetchExcelTable(instance: IPublicClientApplication, accoun
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Error fetching table ${tableName}:`, errorText);
-        throw new Error(`Graph API specific error: ${errorText}`);
+        if (process.env.NODE_ENV !== 'production') {
+            console.error(`Error fetching table ${tableName}:`, errorText);
+        }
+        throw new Error("データの取得に失敗しました。");
     }
 
     const data = await response.json();
@@ -64,35 +70,67 @@ export async function fetchExcelTable(instance: IPublicClientApplication, accoun
 
 // Convert Excel Row Data (Array of arrays) to Member Object
 export function mapRowToMember(row: any): Member {
-    // row.values is [[id, name, team, role, ...]]
     const cells = row.values[0];
+
+    // Basic validation: Ensure enough cells exist
+    if (!cells || cells.length < 6) {
+        console.warn("Invalid member row data (insufficient columns):", row);
+        throw new Error("メンバーデータの形式が正しくありません。");
+    }
+
+    const email = cells[4] ? String(cells[4]).toLowerCase().trim() : undefined;
+    // Simple email format validation
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        console.warn(`Invalid email format detected: ${email}`);
+    }
+
+    const authority = cells[5] ? String(cells[5]).toLowerCase().trim() : undefined;
+    // Authority whitelist validation
+    const validAuthorities = ['admin', 'user'];
+    const sanitizedAuthority = (authority && validAuthorities.includes(authority)) ? authority : 'user';
+
     return {
-        id: String(cells[0]),
-        name: cells[1],
-        group: cells[2],
-        role: cells[3],
-        email: cells[4] ? String(cells[4]).toLowerCase() : undefined,
-        authority: cells[5] ? String(cells[5]).toLowerCase() : undefined,
-        team: cells[6] ? String(cells[6]) : undefined,
-        location: 'Unknown' // Default for now
+        id: sanitizeString(cells[0]),
+        name: sanitizeString(cells[1]),
+        group: sanitizeString(cells[2]),
+        role: (sanitizeString(cells[3]) as any), // Type cast to Role
+        email: email,
+        authority: sanitizedAuthority,
+        team: cells[6] ? sanitizeString(cells[6]) : undefined,
+        location: 'Unknown'
     };
 }
 
 // Convert Excel Row Data to Task Object
 export function mapRowToTask(row: any): Task {
     const cells = row.values[0];
-    const completedByString = String(cells[5] || "");
+
+    // Basic validation: Ensure enough cells exist
+    if (!cells || cells.length < 4) {
+        console.warn("Invalid task row data (insufficient columns):", row);
+        throw new Error("タスクデータの形式が正しくありません。");
+    }
+
+    const completedByString = String(cells[5] || "").trim();
 
     return {
-        rowIndex: row.index, // Store the row index from Graph API
-        id: String(cells[0]),
-        content: cells[1],
+        rowIndex: row.index,
+        id: sanitizeString(cells[0]),
+        content: sanitizeString(cells[1]),
         deadline: convertExcelDate(cells[2]),
-        target: cells[3],
-        link: cells[4] || "#",
+        target: (sanitizeString(cells[3] || '全員') as any), // Type cast to Role
+        link: (cells[4] ? sanitizeString(cells[4]) : "#") || "#",
         isCompleted: false,
-        completedBy: completedByString.split(',').map((s: string) => s.trim()).filter((s: string) => s !== "")
+        completedBy: completedByString ? completedByString.split(',').map((s: string) => s.trim()).filter((s: string) => s !== "") : []
     };
+}
+
+// Helper to strip HTML tags for XSS prevention
+function sanitizeString(val: any): string {
+    if (!val) return '';
+    const str = String(val);
+    // Simple regex to strip HTML tags - as an extra layer on top of React's escaping
+    return str.replace(/<[^>]*>?/gm, '').trim();
 }
 
 // Helper to handle Excel Date formats
@@ -160,7 +198,13 @@ export async function updateTaskCompletionInExcel(
 
     const rowRangeUrl = `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/workbook/tables/Start_Tasks/rows/itemAt(index=${task.rowIndex})/range`;
     const rowRangeResp = await fetch(rowRangeUrl, { headers: { Authorization: `Bearer ${token}` } });
-    if (!rowRangeResp.ok) throw new Error("Failed to get row range");
+    if (!rowRangeResp.ok) {
+        const errorText = await rowRangeResp.text();
+        if (process.env.NODE_ENV !== 'production') {
+            console.error("Failed to get row range:", errorText);
+        }
+        throw new Error("更新対象の特定に失敗しました。");
+    }
     const rowRangeData = await rowRangeResp.json();
 
     // rowRangeData.address is like "Tasks!A2:F2"
@@ -195,8 +239,10 @@ export async function updateTaskCompletionInExcel(
 
     if (!response.ok) {
         const err = await response.text();
-        console.error("Failed to update Excel:", err);
-        throw new Error(`Failed to update task: ${err}`);
+        if (process.env.NODE_ENV !== 'production') {
+            console.error("Failed to update Excel:", err);
+        }
+        throw new Error("タスクの更新に失敗しました。");
     }
 
 }
