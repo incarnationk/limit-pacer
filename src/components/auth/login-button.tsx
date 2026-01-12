@@ -17,9 +17,8 @@ export function LoginButton({ displayName }: LoginButtonProps) {
 
     const handleLogin = async () => {
         try {
-            await instance.loginPopup(loginRequest);
-            // After successful login, redirect to Dashboard if we are on login page
-            router.push("/");
+            // Use redirect instead of popup for better compatibility with Azure Static Web Apps
+            await instance.loginRedirect(loginRequest);
         } catch (e) {
             console.error(e);
         }
