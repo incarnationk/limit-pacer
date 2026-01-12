@@ -31,7 +31,9 @@ jobs:
           app_location: "/" # App source code path
           api_location: "" # Api source code path - optional
           output_location: "out" # Built app content directory - optional
-          app_build_command: "npm install && npm run build" # Force build command to avoid pnpm/Oryx detection issues
+          app_build_command: "npm install && npm run build"
+        env:
+          NEXT_PUBLIC_AZURE_AD_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_AZURE_AD_CLIENT_ID }} # Force build command to avoid pnpm/Oryx detection issues
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
