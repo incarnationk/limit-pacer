@@ -1,21 +1,19 @@
 import { Configuration, PopupRequest } from "@azure/msal-browser";
 
-// Validate required environment variables at runtime (not at build time)
-const getRequiredEnvVar = (name: string): string => {
-    // Only validate in browser context (not during SSR/build)
+// Use static access for environment variables to ensure Next.js build-time injection works correctly
+const getClientId = (): string => {
+    // During build/SSR, return empty string to prevent build errors
     if (typeof window === 'undefined') {
-        // During build/SSR, return empty string to prevent build errors
         return '';
     }
 
-    const value = process.env[name];
-    if (!value) {
+    const value = process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID;
+
+    if (!value || value === 'NOT_CONFIGURED' || value === 'PLACEHOLDER_WILL_BE_REPLACED') {
         console.error(
-            `Environment variable ${name} is not set. ` +
-            `Authentication will not work. ` +
-            `Please configure it in Azure Static Web Apps Configuration.`
+            `Environment variable NEXT_PUBLIC_AZURE_AD_CLIENT_ID is not set correctly. ` +
+            `Current value: ${value}. Authentication will not work.`
         );
-        // Return placeholder to prevent crash - MSAL will fail gracefully on login attempt
         return 'NOT_CONFIGURED';
     }
     return value;
@@ -24,7 +22,7 @@ const getRequiredEnvVar = (name: string): string => {
 // Values from environment variables (required)
 export const msalConfig: Configuration = {
     auth: {
-        clientId: getRequiredEnvVar("NEXT_PUBLIC_AZURE_AD_CLIENT_ID"),
+        clientId: getClientId(),
         // authority: "https://login.microsoftonline.com/common", // Use 'common' for Multi-tenant + Personal
         authority: "https://login.microsoftonline.com/common",
         // Dynamically set redirectUri to current origin (works for localhost and deployed URL)
