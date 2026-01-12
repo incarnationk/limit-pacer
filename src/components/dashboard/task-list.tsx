@@ -5,6 +5,7 @@ import { Task, getTaskStatus } from '@/data/mock';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 
 interface TaskListProps {
     tasks: Task[];
@@ -13,13 +14,39 @@ interface TaskListProps {
 
 export function TaskList({ tasks, onToggle }: TaskListProps) {
     const [showCompleted, setShowCompleted] = useState(false);
-
+    const [confirmingTask, setConfirmingTask] = useState<Task | null>(null);
 
     const todoTasks = tasks.filter(t => !t.isCompleted);
     const completedTasks = tasks.filter(t => t.isCompleted);
 
+    const handleToggleWithConfirm = (task: Task) => {
+        if (task.isCompleted) {
+            // If already completed, toggle back without confirmation
+            onToggle(task.id);
+        } else {
+            // If not completed, show confirmation dialog
+            setConfirmingTask(task);
+        }
+    };
+
+    const handleConfirm = () => {
+        if (confirmingTask) {
+            onToggle(confirmingTask.id);
+            setConfirmingTask(null);
+        }
+    };
+
     return (
         <div className="space-y-6">
+            <ConfirmationDialog
+                isOpen={!!confirmingTask}
+                onClose={() => setConfirmingTask(null)}
+                onConfirm={handleConfirm}
+                title="確認"
+                message="対応済みにしてよろしいですか？"
+                taskTitle={confirmingTask?.content}
+            />
+
             {/* TODO Section */}
             <section>
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -28,7 +55,7 @@ export function TaskList({ tasks, onToggle }: TaskListProps) {
                 </h2>
                 <div className="space-y-3">
                     {todoTasks.map(task => (
-                        <TaskItem key={task.id} task={task} onToggle={() => onToggle(task.id)} />
+                        <TaskItem key={task.id} task={task} onToggle={() => handleToggleWithConfirm(task)} />
                     ))}
                     {todoTasks.length === 0 && (
                         <p className="text-gray-400 italic p-4 bg-gray-50 rounded-lg text-center">

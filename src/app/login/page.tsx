@@ -20,7 +20,7 @@ export default function LoginPage() {
             <div className="text-center space-y-6 max-w-md p-8 bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex justify-center mb-4">
                     <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg">
-                        L
+                        DE
                     </div>
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">期限管理</h1>

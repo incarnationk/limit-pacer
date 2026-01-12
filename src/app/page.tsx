@@ -33,7 +33,7 @@ export default function DashboardPage() {
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold">
-              L
+              DE
             </div>
             <span className="font-bold text-xl tracking-tight">期限管理</span>
             {isAuthenticated && !isLoading && !loadError ? (
