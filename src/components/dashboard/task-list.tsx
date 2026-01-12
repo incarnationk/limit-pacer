@@ -14,8 +14,7 @@ interface TaskListProps {
 export function TaskList({ tasks, onToggle }: TaskListProps) {
     const [showCompleted, setShowCompleted] = useState(false);
 
-    // Split tasks (Mock logic: Assuming tasks without isCompleted are Todo)
-    // In a real app, this would filter by the logged-in user too.
+
     const todoTasks = tasks.filter(t => !t.isCompleted);
     const completedTasks = tasks.filter(t => t.isCompleted);
 

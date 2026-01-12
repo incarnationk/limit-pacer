@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Member, Task, getTaskStatus } from '@/data/mock';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, CheckCircle, Smartphone } from 'lucide-react';
+import { isTaskVisible } from '@/lib/task-utils';
 
 interface AdminViewProps {
     members: Member[];
@@ -13,18 +14,6 @@ interface AdminViewProps {
 export function AdminView({ members, tasks }: AdminViewProps) {
     const [selectedGroup, setSelectedGroup] = useState<string>('all');
 
-    const isTaskVisible = (userRole: string, target: string) => {
-        if (target === '全員') return true;
-        if (target === userRole) return true;
-
-        const roles: Record<string, string[]> = {
-            管理者: ['SM', 'Mgr'],
-            役職者: ['SM', 'Mgr', 'AM', 'L', 'AL'],
-            社員: ['SM', 'Mgr', 'AM', 'L', 'AL', 'T', 'H'],
-            BP: ['BP']
-        };
-        return (roles[target] || []).includes(userRole);
-    };
 
     const getMemberStatus = (member: Member) => {
         // Find tasks for this member's role
@@ -68,14 +57,14 @@ export function AdminView({ members, tasks }: AdminViewProps) {
     const groupStats = uniqueGroups.map(group => {
         const groupMembers = members.filter(m => m.group === group);
 
-        // 1. Calculate Red Cards for this group
+
         const redCards = groupMembers.reduce((acc, member) => {
             const pending = getMemberStatus(member);
             const redCount = pending.filter(t => getTaskStatus(t.deadline) === 'expired').length;
             return acc + redCount;
         }, 0);
 
-        // 2. Calculate Compliance Rate for this group
+
         let groupAssignments = 0;
         let groupCompleted = 0;
 
@@ -92,7 +81,7 @@ export function AdminView({ members, tasks }: AdminViewProps) {
 
         const complianceRate = groupAssignments > 0 ? Math.round((groupCompleted / groupAssignments) * 100) : 100;
 
-        // 3. Team Status for this group
+
         const teamStatus = redCards > 5 ? 'CRT' : redCards > 0 ? 'WRN' : 'SAF';
         const teamStatusColor = redCards > 5 ? 'text-red-600' : redCards > 0 ? 'text-amber-600' : 'text-blue-600';
 

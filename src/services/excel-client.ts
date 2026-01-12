@@ -2,9 +2,18 @@ import { IPublicClientApplication, AccountInfo } from "@azure/msal-browser";
 import { Member, Task } from "@/data/mock";
 
 const GRAPH_ENDPOINT = "https://graph.microsoft.com/v1.0";
-const FILE_PATH = "/me/drive/root:/limit-pacer.xlsx:";
 
-// Helper to get access token
+export const EXCEL_CONFIG = {
+    FILE_NAME: "limit-pacer.xlsx",
+    TABLES: {
+        MEMBERS: "Start_Members",
+        TASKS: "Start_Tasks"
+    }
+} as const;
+
+const EXCEL_EPOCH_OFFSET = 25569;
+
+
 async function getToken(instance: IPublicClientApplication, account: AccountInfo) {
     const request = {
         scopes: ["User.Read", "Files.ReadWrite"],
@@ -20,7 +29,7 @@ async function getToken(instance: IPublicClientApplication, account: AccountInfo
     }
 }
 
-// Helper to find file ID by name in root
+
 async function getFileId(instance: IPublicClientApplication, account: AccountInfo, fileName: string): Promise<string> {
     const token = await getToken(instance, account);
     const escapedFileName = fileName.replace(/'/g, "''");
@@ -48,10 +57,8 @@ async function getFileId(instance: IPublicClientApplication, account: AccountInf
 export async function fetchExcelTable(instance: IPublicClientApplication, account: AccountInfo, tableName: string) {
     const token = await getToken(instance, account);
 
-    // 1. Get File ID (More robust than path syntax)
-    const fileId = await getFileId(instance, account, "limit-pacer.xlsx");
+    const fileId = await getFileId(instance, account, EXCEL_CONFIG.FILE_NAME);
 
-    // 2. Access Workbook via ID
     const response = await fetch(`${GRAPH_ENDPOINT}/me/drive/items/${fileId}/workbook/tables/${tableName}/rows`, {
         headers: { Authorization: `Bearer ${token}` }
     });
@@ -68,7 +75,6 @@ export async function fetchExcelTable(instance: IPublicClientApplication, accoun
     return data.value; // Array of table rows
 }
 
-// Convert Excel Row Data (Array of arrays) to Member Object
 export function mapRowToMember(row: any): Member {
     const cells = row.values[0];
 
@@ -101,7 +107,6 @@ export function mapRowToMember(row: any): Member {
     };
 }
 
-// Convert Excel Row Data to Task Object
 export function mapRowToTask(row: any): Task {
     const cells = row.values[0];
 
@@ -125,32 +130,25 @@ export function mapRowToTask(row: any): Task {
     };
 }
 
-// Helper to strip HTML tags for XSS prevention
 function sanitizeString(val: any): string {
     if (!val) return '';
     const str = String(val);
-    // Simple regex to strip HTML tags - as an extra layer on top of React's escaping
     return str.replace(/<[^>]*>?/gm, '').trim();
 }
 
-// Helper to handle Excel Date formats
 function convertExcelDate(val: any): string {
-    // If it's a number (Excel Serial Date), convert to YYYY-MM-DD
-    // Excel base date: Dec 30, 1899 (approx). 
-    // Unix epoch (1970-01-01) is 25569 days after Excel epoch.
     if (typeof val === 'number') {
-        const date = new Date((val - 25569) * 86400 * 1000);
+        const date = new Date((val - EXCEL_EPOCH_OFFSET) * 86400 * 1000);
         return date.toISOString().split('T')[0];
     }
 
     // If it looks like a number in string form
     const numVal = Number(val);
     if (!isNaN(numVal) && numVal > 10000) { // arbitrary formatting check (e.g. year 2000+ is >36000)
-        const date = new Date((numVal - 25569) * 86400 * 1000);
+        const date = new Date((numVal - EXCEL_EPOCH_OFFSET) * 86400 * 1000);
         return date.toISOString().split('T')[0];
     }
 
-    // Otherwise return as is (assuming it's already a string like "2024-12-31")
     return String(val);
 }
 
@@ -167,36 +165,9 @@ export async function updateTaskCompletionInExcel(
     const token = await getToken(instance, account);
     const newStatsStr = newCompletedBy.join(',');
 
-    // 1. Get File ID
-    const fileId = await getFileId(instance, account, "limit-pacer.xlsx");
+    const fileId = await getFileId(instance, account, EXCEL_CONFIG.FILE_NAME);
 
-    // Use Table-relative addressing which is safer than calculating absolute row
-    // PATCH /workbook/tables/{tableName}/rows/itemAt(index={rowIndex})
-    // Note: To update specific column in a row, we pass values for that row.
-    // However, Graph API PATCH row requires all values or careful handling.
-    // Actually, 'range(address=...)' is fine IF we get the address from the table row.
-
-    // Better strategy: Get the Range for the specific cell using Table Row + Column Name
-    // But Column Name mapping to index is tricky without metadata.
-    // 'completedBy' is column 6 (Index 5) in our definition.
-
-    // Let's use the 'Range' of the specific cell by calculating offset from Table Range.
-    // OR simpler: Use the logic we had but verify Table header position? 
-    // No, let's use the 'table/rows/itemAt' to get the row's Range address first, then calculate cell.
-    // That's two calls.
-
-    // Alternative: Just PATCH the whole row with existing values + new value?
-    // We don't have all existing values in 'task' object perfectly (some might be missing/truncated?).
-
-    // Let's stick to Range Address but make sure we target the TABLE's sheet and assume 'Start_Tasks' table.
-    // The previous code assumed 'Tasks' WORKsheet and 'F' column.
-    // If the user renamed the sheet or moved the table, it breaks.
-
-    // NEW STRATEGY:
-    // 1. Get the Range for the Row using Table Row Index
-    // 2. Patch the specific cell in that range (Column 5/F)
-
-    const rowRangeUrl = `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/workbook/tables/Start_Tasks/rows/itemAt(index=${task.rowIndex})/range`;
+    const rowRangeUrl = `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/workbook/tables/${EXCEL_CONFIG.TABLES.TASKS}/rows/itemAt(index=${task.rowIndex})/range`;
     const rowRangeResp = await fetch(rowRangeUrl, { headers: { Authorization: `Bearer ${token}` } });
     if (!rowRangeResp.ok) {
         const errorText = await rowRangeResp.text();
@@ -205,26 +176,9 @@ export async function updateTaskCompletionInExcel(
         }
         throw new Error("更新対象の特定に失敗しました。");
     }
-    const rowRangeData = await rowRangeResp.json();
+    const cellUrl = `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/workbook/tables/${EXCEL_CONFIG.TABLES.TASKS}/rows/itemAt(index=${task.rowIndex})/range/cell(row=0,column=5)`;
 
-    // rowRangeData.address is like "Tasks!A2:F2"
-    // We need the 6th cell (Column F) in that range.
-    // We can use the 'cell(row, column)' endpoint on the range? No such endpoint on range.
 
-    // Let's just use the Worksheet 'Range' PATCH, but use the exact address we found?
-    // Actually, let's use the safer "Column based" update if possible.
-    // Graph API allows patching a Range.
-
-    // Let's rely on the fact that we know it's Column Index 5 (0-based) of the table.
-    const cellUrl = `${GRAPH_ENDPOINT}/me/drive/items/${fileId}/workbook/tables/Start_Tasks/rows/itemAt(index=${task.rowIndex})/range/cell(row=0,column=5)`;
-
-    // Force value to be treated as String by Excel to prevent scientific notation conversion
-    // Prepending an apostrophe (') is a common Excel trick, but Graph API might just handle strings?
-    // Let's try sending just the string first. If it was "ID,ID", it shouldn't be a number.
-    // The previous issue was likely reading numeric data as scientific notation.
-
-    // We will clean the input: Ensure no scientific notation strings exist in the array to begin with?
-    // But better to just Write it cleanly.
 
     const response = await fetch(cellUrl, {
         method: 'PATCH',
