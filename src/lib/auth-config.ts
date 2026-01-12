@@ -10,10 +10,13 @@ const getRequiredEnvVar = (name: string): string => {
 
     const value = process.env[name];
     if (!value) {
-        throw new Error(
-            `Required environment variable ${name} is not set. ` +
-            `Please configure it in your .env.local file or Azure Static Web Apps configuration.`
+        console.error(
+            `Environment variable ${name} is not set. ` +
+            `Authentication will not work. ` +
+            `Please configure it in Azure Static Web Apps Configuration.`
         );
+        // Return placeholder to prevent crash - MSAL will fail gracefully on login attempt
+        return 'NOT_CONFIGURED';
     }
     return value;
 };
